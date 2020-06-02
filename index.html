@@ -1,0 +1,100 @@
+﻿<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <title>segmentPerson Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0"></script>
+</head>
+<body>
+    <button class="btn" style="visibility: hidden;">None</button>
+    <button class="btn" style="visibility: hidden;">Run segmentPerson</button>
+    <br />
+    <h4><span id="mySpan"></span></h4> 
+    <video id="myVideo" muted autoplay playsinline loop style="visibility: hidden;"></video>
+    <script>
+        (function () {
+            let video = document.getElementById("myVideo");
+            let span = document.getElementById("mySpan");
+
+            let bodyPixNet = null;
+            let mode = null;
+            let onButton = 0;
+
+            // ------- bodypix -------
+            async function loadModel() {
+                bodyPixNet = await bodyPix.load({
+                    architecture: "MobileNetV1",
+                    outputStride: 16,
+                    multiplier: 0.75,
+                    quantBytes: 2
+                });                
+            }
+
+            function updateSegment() {
+                const segmeteUpdateTime = 1000 / 30; // ms
+                if (!(video.videoWidth === 0 || video.videoHeight === 0) && video.readyState == 4) {
+                    if (!bodyPixNet) {
+                        console.warn("bodyPix net NOT READY");
+                        return;
+                    }
+
+                    const option = {
+                        flipHorizontal: false,
+                        internalResolution: "medium",
+                        segmentationThreshold: 0.9,
+                        maxDetections: 1,
+                        scoreThreshold: 0.8,
+                        nmsRadius: 20,
+                        minKeypointScore: 0.3,
+                        refineSteps: 8
+                    };
+
+                    if (mode === "Run segmentPerson") {
+                        bodyPixNet.segmentPerson(video, option)
+                            .then(segmentation => {
+                                if (onButton > 0)
+                                    onButton--;
+                                else
+                                    span.innerHTML = "Outputting segment";
+                            })
+                            .catch(err => {
+                                console.error('segmentPerson ERROR:', err);
+                                return;
+                            })
+                    }
+                } 
+                setTimeout(updateSegment, segmeteUpdateTime);
+            }
+
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                    loadModel();
+                }).catch(err => {
+                    console.error("getUserMedia ERROR:", err);
+                });
+
+            video.onloadedmetadata = (event) => {
+                video.width = video.videoWidth;
+                video.height = video.videoHeight;
+                let btns = document.getElementsByClassName("btn");
+                for (let i = 0; i < btns.length; i++) {
+                    btns[i].onclick = StartSegmentPerson;
+                    btns[i].style.visibility = "visible";
+                }
+            }
+
+            function StartSegmentPerson(e) {                
+                if (!mode)
+                    updateSegment();
+                
+                mode = e.target.innerHTML;
+                span.innerHTML = mode;
+                onButton = 2;
+            }
+        }());
+    </script>
+</body>
+</html>
